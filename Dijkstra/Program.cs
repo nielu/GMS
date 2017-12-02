@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -13,15 +14,136 @@ namespace Dijkstra
             int s = int.Parse(Console.ReadLine());
             for (int testCase = 0; testCase < s; ++testCase)
             {
-                int n = int.Parse(Console.ReadLine());
+                var g = Graph.Parse();
+                var pathCount = int.Parse(Console.ReadLine());
+                var pathsToFind = new string[pathCount];
+                for (int i = 0; i < pathCount; ++i)
+                    pathsToFind[i] = Console.ReadLine();
 
+                foreach(var p in pathsToFind)
+                {
+                    var cities = p.Split(' ');
+                    Console.WriteLine(Djikstra(g, cities[0], cities[1]));
+                }
             }
+        }
+
+        static int Djikstra(Graph g, string startingCity, string endingCity)
+        {
+            var dist = new Dictionary<string, int>();
+            //var prev = new Dictionary<string, string>();
+            var heap = new Heap();
+            int alt;
+            dist[startingCity] = 0;
+            dist[endingCity] = Int16.MinValue;
+            
+            foreach (var city in g.Cities.Keys)
+            {
+                if (city == startingCity) continue;
+                dist[city] = Int16.MaxValue;
+                //prev[city] = string.Empty;
+
+                heap.Insert(new FiboNode<string, int>(city,
+                    g.AdjacencyMatrix[g.Cities[startingCity], g.Cities[city]]
+                    ));
+            }
+
+            while (!heap.IsEmpty)
+            {
+                var u = heap.RemoveMin();
+                var neigbours = g.AdjacencyMatrix.GetRow(g.Cities[u.Data]);
+                for (int i = 0; i < neigbours.Length; ++i)
+                {
+                    if (neigbours[i] <= 0) continue;
+                    string cityName = g.Cities.First(kv => kv.Value == i).Key;
+                    if (dist[u.Data] == Int16.MaxValue)
+                        alt = neigbours[i];
+                    else
+                        alt = dist[u.Data] + neigbours[i];
+
+                    if (alt < dist[cityName])
+                    {
+                        dist[cityName] = alt;
+                        //prev[cityName] = u.Data;
+                        heap.DecreaseKey(new Node(cityName, neigbours[i]), alt);
+                    }
+                }
+            }
+
+            return dist[endingCity];
         }
     }
 
+    public class Graph
+    {
+        public Dictionary<string, int> Cities;
+        public int[,] AdjacencyMatrix;
+        public int CityCount;
+
+        public static Graph Parse()
+        {
+            var g = new Graph();
+
+            g.CityCount = int.Parse(Console.ReadLine());
+
+            g.AdjacencyMatrix = new int[g.CityCount, g.CityCount];
+            for (int x = 0; x < g.CityCount; ++x)
+                for (int y = 0; y < g.CityCount; ++y)
+                    if (x == y)
+                        g.AdjacencyMatrix[x, y] = 0;
+                    else
+                        g.AdjacencyMatrix[x, y] = Int16.MinValue;
+
+            for (int i = 0;i < g.CityCount; ++i)
+            {
+                var cityName = Console.ReadLine();
+                var neigbouringCities = int.Parse(Console.ReadLine());
+                g.Cities[cityName] = i;
+
+                for (int j = 0; j < neigbouringCities; ++j)
+                {
+                    var line = Console.ReadLine().Split(' ');
+                    var toCity = int.Parse(line[0]) -1; //we start to count cities from 0 not from 1
+                    var cost = int.Parse(line[1]);
+                    g.AdjacencyMatrix[i, toCity] = cost;
+                }
+            }
+
+            return g;
+        }
+
+        private Graph()
+        {
+            this.Cities = new Dictionary<string, int>();
+        }
+    }
+
+
+    public static class ArrayExt
+    {
+        public static T[] GetRow<T>(this T[,] array, int row)
+        {
+            if (!typeof(T).IsPrimitive)
+                throw new InvalidOperationException("Not supported for managed types.");
+
+            if (array == null)
+                throw new ArgumentNullException("array");
+
+            int cols = array.GetUpperBound(1) + 1;
+            T[] result = new T[cols];
+            int size = Marshal.SizeOf<T>();
+
+            Buffer.BlockCopy(array, row * cols * size, result, 0, cols * size);
+
+            return result;
+        }
+    }
+
+    #region Heap implementation
+
     class Heap : FiboHeap<string, int>
     {
-        public Heap(int minKeyValue) : base(minKeyValue)
+        public Heap() : base(int.MinValue)
         {
 
         }
@@ -32,6 +154,8 @@ namespace Dijkstra
         public Node(string data, int key) : base(data, key)
         {
         }
+
+        public bool IsLabeled = false;
     }
 
     class FiboHeap<T, TKey> where TKey : IComparable
@@ -352,4 +476,6 @@ namespace Dijkstra
         public bool IsVisited { get; set; }
         public int Degree { get; set; }
     }
+
+    #endregion
 }
